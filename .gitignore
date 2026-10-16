@@ -1,0 +1,14 @@
+.fbm-state/
+*.db
+*.db-wal
+*.db-shm
+cookies*.json
+session.json
+.superpowers/
+dist/
+*.age
+*.key
+cookies.json
+cookies.txt
+/fbm
+.check-public.local
