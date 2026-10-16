@@ -1,0 +1,14 @@
+[
+  {"name": "xs", "value": "fake-xs-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
+  {"name": "c_user", "value": "100001234567890", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": false},
+  {"name": "datr", "value": "fake-datr-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
+  {"name": "fr", "value": "fake-fr-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
+  {"name": "sb", "value": "fake-sb-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
+  {"name": "unrelated_cookie", "value": "fake-unrelated-value", "domain": ".example.com", "path": "/"},
+  {"name": "_ga", "value": "GA1.1.0000000000.0000000000", "domain": ".example.org", "path": "/"},
+  {"name": "session_id", "value": "fake-session-value", "domain": "news.example.net", "path": "/"},
+  {"name": "csrftoken", "value": "fake-csrf-value", "domain": "app.example.com", "path": "/"},
+  {"name": "theme", "value": "dark", "domain": "docs.example.org", "path": "/"},
+  {"name": "lang", "value": "en", "domain": ".example.net", "path": "/"},
+  {"name": "tracking_opt_out", "value": "1", "domain": ".example.com", "path": "/"}
+]

@@ -1,0 +1,7 @@
+# Netscape HTTP Cookie File
+# This is a generated file! Do not edit.
+
+#HttpOnly_.facebook.com	TRUE	/	TRUE	4102444800	xs	fake-xs-value
+.facebook.com	TRUE	/	TRUE	4102444800	c_user	100001234567890
+.facebook.com	TRUE	/	TRUE	4102444800	datr	fake-datr-value
+.facebook.com	TRUE	/	TRUE	1000000000	fr	fake-expired-fr-value
