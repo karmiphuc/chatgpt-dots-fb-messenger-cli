@@ -343,6 +343,19 @@ printf '{}\n' >"$R/.vscode/settings.json"
 git -C "$R" add -f .vscode/settings.json
 expect_clean "JSON under .github/ and .vscode/"
 
+printf '== check-public.sh: c_user pairs in code and tuples\n'
+plant cuser-go internal/x/fixture_test.go "var c = cookie{N: \"c_user\", V: \"$CUSER\"}"
+expect_hit fb-c_user-go-literal internal/x/fixture_test.go "$CUSER"
+expect_gitleaks fb-c_user-go-literal internal/x/fixture_test.go
+plant cuser-tuple notes/pairs.py "pairs = [(\"c_user\", \"$CUSER\")]"
+expect_hit fb-c_user-tuple notes/pairs.py "$CUSER"
+expect_gitleaks fb-c_user-tuple notes/pairs.py
+plant cuser-num notes/state.yaml "\"c_user\": $CUSER"
+expect_hit fb-c_user-number notes/state.yaml "$CUSER"
+expect_gitleaks fb-c_user-number notes/state.yaml
+plant cuser-short internal/x/short_test.go "var c = cookie{N: \"c_user\", V: \"1234567\"}"
+expect_clean "a 7-digit c_user pair"
+
 printf '== check-public.sh: symlinks and submodules\n'
 R=$WORK/repo-symlink
 new_repo "$R"
@@ -387,6 +400,17 @@ run_cp "$R" full
 if grep -q '^path.md:1' <<<"$OUT" && ! grep -qF 'someone/notes' <<<"$OUT"; then ok "generic pattern [default]: path:line:rule, no text"; else bad "generic pattern [default]: $OUT"; fi
 run_cp "$R" full --show
 if grep -qF 'someone/notes' <<<"$OUT"; then ok "generic pattern [--show]: full line"; else bad "generic pattern [--show]: no line: $OUT"; fi
+# --show never prints a line that also holds a private string or a secret.
+printf 'see /Use''rs/someone/a and %s\n' "$PRIVATE" >"$R/both.md"
+printf 'see /Use''rs/someone/b and xs=%s\n' "$XS" >"$R/both2.md"
+git -C "$R" add both.md both2.md
+run_cp "$R" full --show
+if [ "$RC" -eq 1 ] && grep -q '^both.md:1' <<<"$OUT" && grep -q '^both2.md:1' <<<"$OUT" &&
+	! grep -qF "$PRIVATE" <<<"$OUT" && ! grep -qF "$XS" <<<"$OUT"; then
+	ok "generic pattern [--show]: a line that also holds a private string or secret prints path:line only"
+else
+	bad "generic pattern [--show] with a private string or secret on the line: exit $RC, or the line was shown"
+fi
 R=$WORK/repo-prose
 new_repo "$R"
 printf 'A corpo''rate laptop is fine to mention.\n' >"$R/prose.md"

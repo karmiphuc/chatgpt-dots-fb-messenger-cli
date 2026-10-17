@@ -15,7 +15,8 @@
 # --staged scans what the next commit would hold (the git hooks use it); --dir
 # scans everything under PATH (export-public.sh uses it). Each hit prints as
 # path:line: rule, or path: blocked file: reason, never the matched text.
-# --show adds the line for the built-in local-path pattern only; --quiet-hits
+# --show adds the line for the built-in local-path pattern only, and never for
+# a line or file that any other check flagged; --quiet-hits
 # (CI, the hooks) never shows a line. Exits 1 on any hit, 2 if a scanner
 # failed or the arguments are wrong.
 set -euo pipefail
@@ -104,6 +105,7 @@ T=$(printf '\t')
 	printf '%s\n' "${B}xs${Q}${S}[=:]${S}${Q}[0-9]{1,3}(${P}|:)[A-Za-z0-9_-]{16,}(${P}|:)[0-9](${P}|:)[0-9]{10}"
 	printf '%s\n' "${B}[0-9]{1,3}${P}[A-Za-z0-9_-]{16,}${P}[0-9]${P}[0-9]{10}"
 	printf '%s\n' "${B}c_user${Q}${S}[=:[:space:]]${S}${Q}[0-9]{8,20}${E}"
+	printf '%s\n' "${B}c_user[^0-9]{0,30}[^A-Za-z0-9_][0-9]{8,20}${E}"
 	printf '%s\n' "${B}datr${Q}${S}[=:[:space:]]${S}${Q}[A-Za-z0-9_-]{24}${E}"
 	printf '%s\n' "\"name\"${S}:${S}\"(c_user\"[^}]{0,80}\"value\"${S}:${S}\"[0-9]{8,20}\"|xs\"[^}]{0,80}\"value\"${S}:${S}\"[0-9]{1,3}(${P}|:)[A-Za-z0-9_-]{16,}|datr\"[^}]{0,80}\"value\"${S}:${S}\"[A-Za-z0-9_-]{24}\")"
 	printf '%s\n' "fb_dtsg${Q}${S}[=:]${S}${Q}[A-Za-z0-9_:-]{20,}"
@@ -327,7 +329,8 @@ label() { cut -d: -f1,2 | sed "s/\$/: $1/"; }
 # xargs folds "no match" and "search error" into one status, so judge by stderr.
 if [ -s "$list" ]; then
 	if [ "$SHOW" -eq 1 ]; then
-		search_names <"$list" 2>>"$errs" >>"$hitfile" || true
+		# Full lines wait until every other hit is known: see the end.
+		search_names <"$list" 2>>"$errs" >"$TMP/shown" || true
 	else
 		search_names <"$list" 2>>"$errs" | label "local path or internal name" >>"$hitfile" || true
 	fi
@@ -367,6 +370,24 @@ if command -v gitleaks >/dev/null 2>&1; then
 	esac
 else
 	echo "[warn] gitleaks not installed; pattern scan only" >&2
+fi
+
+# --show: a full line prints only when nothing else hit that line or its file,
+# so a private string, a secret or a blocked file's contents never print.
+if [ -s "$TMP/shown" ]; then
+	awk -v hits="$hitfile" '
+		BEGIN {
+			while ((getline h < hits) > 0) {
+				i = index(h, ": blocked file: ")
+				if (i) { blocked[substr(h, 1, i - 1)] = 1; continue }
+				split(h, f, ":"); seen[f[1] ":" f[2]] = 1
+			}
+		}
+		{
+			split($0, f, ":"); k = f[1] ":" f[2]
+			if ((k in seen) || (f[1] in blocked)) print k ": local path or internal name"
+			else print
+		}' "$TMP/shown" >>"$hitfile"
 fi
 
 if [ -s "$hitfile" ]; then
