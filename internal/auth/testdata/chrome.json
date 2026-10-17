@@ -1,6 +1,6 @@
 [
   {"name": "xs", "value": "fake-xs-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
-  {"name": "c_user", "value": "100001234567890", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": false},
+  {"name": "c_user", "value": "1234567", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": false},
   {"name": "datr", "value": "fake-datr-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
   {"name": "fr", "value": "fake-fr-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
   {"name": "sb", "value": "fake-sb-value", "domain": ".facebook.com", "path": "/", "secure": true, "httpOnly": true},
