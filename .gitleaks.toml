@@ -1,0 +1,104 @@
+# gitleaks rules for fbm: the defaults, plus the shapes of what fbm handles —
+# Facebook session cookies, age keys, fbm's own JSON output and a Facebook
+# "Download Your Information" export. There is deliberately no path allowlist:
+# test fixtures use values that break these shapes (a 7-digit c_user, "fake-"
+# strings) instead. Used by scripts/check-public.sh and the leak-guard workflow.
+
+title = "fbm leak guard"
+
+[extend]
+useDefault = true
+
+# The xs session cookie as name=value or "xs": "value".
+[[rules]]
+id = "fb-xs"
+description = "Facebook xs session cookie"
+regex = '''\bxs["']?\s*[=:]\s*["']?\d{1,3}(%3[Aa]|:)[A-Za-z0-9_\-]{16,}(%3[Aa]|:)\d(%3[Aa]|:)\d{10}'''
+keywords = ["xs"]
+
+# The xs value on its own, URL-encoded as cookie stores and exports hold it:
+# catches the Netscape (tab) and JSON name/value layouts the rule above misses.
+[[rules]]
+id = "fb-xs-value"
+description = "Facebook xs session cookie value (URL-encoded)"
+regex = '''\b\d{1,3}%3[Aa][A-Za-z0-9_\-]{16,}%3[Aa]\d%3[Aa]\d{10}'''
+keywords = ["%3a"]
+
+# c_user is the account id: name=value, "c_user": value or Netscape tab format.
+[[rules]]
+id = "fb-c_user"
+description = "Facebook c_user cookie (account id)"
+regex = '''\bc_user["']?\s*[=:\t ]\s*["']?\d{8,20}\b'''
+keywords = ["c_user"]
+
+# Published history (before 2026-10-17) holds the old fake fixture id
+# 100001234567890, which a history scan cannot unsee. That one value, never a
+# path, is allowed; today's fixtures use a 7-digit id below the rules' shape.
+# Exact value only: published history holds this fake fixture and web uploads cannot rewrite history.
+[[rules.allowlists]]
+description = "the old fake fixture c_user in published history"
+regexTarget = "match"
+regexes = ['''\b100001234567890\b''']
+
+[[rules]]
+id = "fb-datr"
+description = "Facebook datr device cookie"
+regex = '''\bdatr["']?\s*[=:\t ]\s*["']?[A-Za-z0-9_\-]{24}\b'''
+keywords = ["datr"]
+
+# Browser-extension and CDP exports: {"name": "c_user", ..., "value": "..."}.
+[[rules]]
+id = "fb-cookie-json"
+description = "Facebook cookie in a JSON name/value export"
+regex = '''"name"\s*:\s*"(c_user"[^}]{0,80}"value"\s*:\s*"\d{8,20}"|xs"[^}]{0,80}"value"\s*:\s*"\d{1,3}(%3[Aa]|:)[A-Za-z0-9_\-]{16,}|datr"[^}]{0,80}"value"\s*:\s*"[A-Za-z0-9_\-]{24}")'''
+keywords = ["c_user", "xs", "datr"]
+
+# Exact value only: published history holds this fake fixture and web uploads cannot rewrite history.
+[[rules.allowlists]]
+description = "the old fake fixture c_user in published history (see fb-c_user)"
+regexTarget = "match"
+regexes = ['''\b100001234567890\b''']
+
+[[rules]]
+id = "fb-dtsg"
+description = "Facebook fb_dtsg request token"
+regex = '''fb_dtsg["']?\s*[=:]\s*["']?[A-Za-z0-9_:\-]{20,}'''
+keywords = ["fb_dtsg"]
+
+[[rules]]
+id = "age-secret"
+description = "age secret key"
+regex = '''AGE-SECRET-KEY-[1][A-Z0-9]{58}'''
+keywords = ["age-secret-key-"]
+
+[[rules]]
+id = "age-recipient"
+description = "age recipient (public key; ties the repo to the owner's key)"
+regex = '''\bage1[a-z0-9]{58}\b'''
+keywords = ["age1"]
+
+# fbm's own output: a thread_key value, not the tag name.
+[[rules]]
+id = "fbm-output"
+description = "fbm output (a Messenger thread key)"
+regex = '''"thread_key"\s*:\s*"?\d{13,20}'''
+keywords = ["thread_key"]
+
+# fbm threads --format text: kind, E2EE, last activity, name, thread key.
+[[rules]]
+id = "fbm-text-output"
+description = "fbm text output (a thread line with its key)"
+regex = '''(?m)^(dm|group|other)\t(true|false)\t\d{4}-\d\d-\d\dT\S+\t[^\t]*\t\d{13,20}$'''
+
+# A Facebook "Download Your Information" Messenger export.
+[[rules]]
+id = "dyi-export-sender"
+description = "Facebook DYI export (sender_name)"
+regex = '''"sender_name"\s*:'''
+keywords = ["sender_name"]
+
+[[rules]]
+id = "dyi-export-timestamp"
+description = "Facebook DYI export (timestamp_ms)"
+regex = '''"timestamp_ms"\s*:\s*\d{12,}'''
+keywords = ["timestamp_ms"]

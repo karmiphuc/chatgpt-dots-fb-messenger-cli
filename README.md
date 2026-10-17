@@ -14,7 +14,7 @@ Tell your Dot this one sentence:
 
 > Set up https://github.com/karmiphuc/chatgpt-dots-fb-messenger-cli by following DOTS.md in that repo.
 
-The Dot clones the repo, runs `scripts/install.sh` (Go, the build and a Chromium), opens a Chromium window on
+The Dot clones the repo, runs `bash scripts/install.sh` (Go, the build and a Chromium), opens a Chromium window on
 its computer for you to log in to Facebook, then runs the 48-hour spike. Your part is that one login, plus
 clearing a checkpoint from your phone if Facebook raises one. [DOTS.md](DOTS.md) is the Dot's manual.
 
@@ -46,7 +46,7 @@ failed reconnects, and a latch that stops every command after a checkpoint until
 ## Build
 
 `make build` (host binary in `dist/fbm`), `make linux-amd64`, `make linux-arm64`, `make test`. Needs Go 1.26
-or newer; `scripts/install.sh` fetches it on Linux if missing.
+or newer; `bash scripts/install.sh` fetches it on Linux if missing.
 
 ## Docs
 
@@ -59,6 +59,39 @@ or newer; `scripts/install.sh` fetches it on Linux if missing.
   cannot work
 - [Progress log](docs/PROGRESS.md)
 
-Before publishing, run `scripts/check-public.sh`: it fails if a tracked file holds a local path, an internal
-name or an age secret key. Put any extra strings to block (your username, an employer name), one per line, in
-`.check-public.local` at the repo root; it is git-ignored and matched as fixed strings, ignoring case.
+## Before publishing
+
+This repo is public, and fbm sits next to a Messenger session. Upload only from a folder made by
+`bash scripts/export-public.sh`, never from the clone (which also holds fbm state, build output and
+`.check-public.local`). Run every script with `bash`: a web upload drops the executable bit.
+
+```sh
+bash scripts/export-public.sh            # or --out DIR; --dry-run runs the checks only
+```
+
+It refuses uncommitted changes to tracked files, runs `bash scripts/check-public.sh`, copies exactly the
+current commit (`git archive HEAD`) to `~/fbm-publish/<UTC timestamp>/`, scans that folder again, and prints
+the folder and the commit sha. Upload the folder's contents, dot-files included (`.github`, `.gitignore`,
+`.gitleaks.toml`; Cmd+Shift+. shows them in Finder).
+
+`bash scripts/check-public.sh` fails on a local path, an internal name, an age key, a Facebook cookie (`xs`,
+`c_user`, `datr`, `fb_dtsg`), fbm output (JSON or text), a Messenger data export (a `messages/` folder outside
+`internal/`, `message_N.json` or `.html`), a file named like fbm state or `.check-public.local`, a browser
+profile, an archive or a database (extensions in any case), a binary other than a png, jpg, gif, ico or webp
+image, a Git LFS pointer, a symlink or a submodule, any JSON outside `internal/*/testdata/`, `.github/` and
+`.vscode/`, or any file over 200 KB but `go.sum`. It also runs gitleaks with [`.gitleaks.toml`](.gitleaks.toml)
+when gitleaks is installed. Each hit prints as path, line and rule, never the matched text (`--show` adds the
+line for the built-in local-path pattern only).
+
+Put extra strings to block (your username, an employer name), one per line, in `.check-public.local` at the
+repo root. It is git-ignored, matched as fixed strings ignoring case, and a hit on one prints its path and line
+only. The list stays on your machine: the hooks, `bash scripts/export-public.sh` and manual runs use it, and
+the `leak-guard` workflow does not, because anyone who can push could edit the workflow to print a secret it
+was given. The workflow uses no secrets; it scans the whole history with gitleaks and the tree with the check,
+on every push and weekly.
+
+`bash scripts/install.sh` points this clone's git hooks at `scripts/githooks` (commits and pushes run the
+check), unless the machine sets a global or system hooks path, which it leaves in force: there, run
+`bash scripts/check-public.sh` before committing. On a Dot it also disables pushing and refuses to set up next
+to a GitHub credential. `bash scripts/test-leak-guard.sh` plants leaks in throwaway repos and checks that every
+guard catches them. Rules for agents: [AGENTS.md](AGENTS.md).

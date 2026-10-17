@@ -12,3 +12,15 @@ cookies.json
 cookies.txt
 /fbm
 .check-public.local
+# leak guard: fbm output and state, browser profiles, Facebook exports, archives
+*.out
+last_error.json
+spike-verdict.json
+fbm.lock
+browser-profile/
+/messages/
+/your_facebook_activity/
+*.zip
+*.har
+*.sqlite*
+fbm-publish/
