@@ -71,5 +71,6 @@ passed.
 
 Update [../PROGRESS.md](../PROGRESS.md) and the "Last published" line below.
 
-Last published: local commit `2eac05a` plus this documentation commit, uploaded 2026-10-17.
-75/75 blobs were verified before this doc was added, and `leak-guard` passed on GitHub.
+Last published: local commit `94760cd`, followed by the commit that updates this line, uploaded
+2026-10-17. The full tree digest matched the GitHub tree API, 77/77 files, and `leak-guard`
+passed on every upload commit.
