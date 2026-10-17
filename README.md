@@ -81,7 +81,7 @@ profile, an archive or a database (extensions in any case), a binary other than 
 image, a Git LFS pointer, a symlink or a submodule, any JSON outside `internal/*/testdata/`, `.github/` and
 `.vscode/`, or any file over 200 KB but `go.sum`. It also runs gitleaks with [`.gitleaks.toml`](.gitleaks.toml)
 when gitleaks is installed. Each hit prints as path, line and rule, never the matched text (`--show` adds the
-line for the built-in local-path pattern only).
+line for the built-in local-path pattern only, never for a line or file another check flagged).
 
 Put extra strings to block (your username, an employer name), one per line, in `.check-public.local` at the
 repo root. It is git-ignored, matched as fixed strings ignoring case, and a hit on one prints its path and line

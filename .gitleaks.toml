@@ -40,6 +40,20 @@ description = "the old fake fixture c_user in published history"
 regexTarget = "match"
 regexes = ['''\b100001234567890\b''']
 
+# c_user next to an account id in code, a tuple or a map:
+# {N: "c_user", V: "..."}, ("c_user", "..."), "c_user": ...
+[[rules]]
+id = "fb-c_user-pair"
+description = "Facebook c_user paired with an account id"
+regex = '''\bc_user[^\r\n0-9]{0,30}?\b\d{8,20}\b'''
+keywords = ["c_user"]
+
+# Exact value only: published history holds this fake fixture and web uploads cannot rewrite history.
+[[rules.allowlists]]
+description = "the old fake fixture c_user in published history (see fb-c_user)"
+regexTarget = "match"
+regexes = ['''\b100001234567890\b''']
+
 [[rules]]
 id = "fb-datr"
 description = "Facebook datr device cookie"
