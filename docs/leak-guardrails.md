@@ -59,9 +59,11 @@ the gate closes that path.
 - tree (`git ls-files`)
 - `--staged` (the index)
 - `--dir <path>` (an export folder)
-- `--quiet-hits`, which prints only `path:line:rule`. That is the default for private-string
-  hits in every mode.
-- `--show`, which prints full lines, and only for generic local-path hits.
+- Output: every hit prints as `path:line:rule` (or `path: blocked file: reason`) by default.
+  Private-string hits never print their line in any mode.
+- `--quiet-hits` never prints a line (CI and the hooks use it).
+- `--show` prints full lines, only for generic local-path hits, and never for a line or file that
+  a private string, a secret shape, gitleaks or a file rule also flagged.
 
 **Denied by name or shape:** the state and output files listed above, any `*.json` outside
 `internal/*/testdata/`, `.github/` and `.vscode/`, `messages/` folders outside `internal/`,
@@ -70,7 +72,8 @@ the gate closes that path.
 **Rejected outright:** binary files (except png, jpg, jpeg, gif, ico and webp), files over
 200 KB (except `go.sum`), symlinks, submodules, Git LFS pointers, and `.check-public.local`.
 
-**Content checks:** local paths, Facebook cookie value shapes (including lowercase `%3a`),
+**Content checks:** local paths, Facebook cookie value shapes (including lowercase `%3a`, and
+`c_user` next to an 8 to 20 digit id in code, tuples or maps),
 fbm JSON and text-row output shapes, and data-export markers. It also matches the private
 strings from `.check-public.local` as fixed strings, ignoring case, and never prints them.
 It runs gitleaks too when installed.
@@ -81,13 +84,14 @@ It runs gitleaks too when installed.
 
 It extends the gitleaks defaults with:
 
-- Facebook rules: `fb-xs`, `fb-xs-value`, `fb-cookie-json`, `fb-c_user`, `fb-datr` and
-  `fb-dtsg`.
+- Facebook rules: `fb-xs`, `fb-xs-value`, `fb-cookie-json`, `fb-c_user`, `fb-c_user-pair`
+  (`c_user` within 30 characters of an 8 to 20 digit id, as in `{N: "c_user", V: "…"}`),
+  `fb-datr` and `fb-dtsg`.
 - age rules: `age-secret` and `age-recipient`.
 - fbm output rules: the JSON thread key and the text row.
 - data-export rules: `sender_name` and `timestamp_ms`.
 
-It has no path allowlists. There are two exact-value allowlists, for a fake `c_user` fixture
+It has no path allowlists. There are three exact-value allowlists (on the three `c_user` rules), for a fake `c_user` fixture
 value that sits in the already-published history; web uploads cannot rewrite history. Test
 fixtures were changed so that every current value falls below the rule shapes.
 
