@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Build fbm and make sure a Chromium it can launch is installed. Linux only.
+# Build fbm and make sure a Chromium it can launch is installed. Linux only,
+# except the first step: on every system it points this clone's git hooks at
+# scripts/githooks, so commits and pushes run scripts/check-public.sh, unless
+# the machine sets a global or system hooks path, which it leaves alone. On Linux
+# it then disables pushing from this clone and stops if a GitHub credential is
+# on the machine, before building anything.
 # Idempotent: a second run changes nothing. --dry-run changes nothing at all.
 #
 #   bash scripts/install.sh [--dry-run]
 #
-# Each step prints [ok], [skip] or [warn]. Only a missing Go toolchain with no
-# way to fetch one, or a failed build, stops the run; the Chromium steps warn and
-# carry on, and the doctor JSON printed last says whether a browser launches.
+# Each step prints [ok], [skip] or [warn]. Only a GitHub credential on the
+# machine, a missing Go toolchain with no way to fetch one, or a failed build
+# stops the run; the Chromium steps warn and carry on, and the doctor JSON
+# printed last says whether a browser launches.
 set -euo pipefail
 
 usage() {
@@ -45,8 +51,172 @@ die() {
 # carries a toolchain line, and the build uses the Go this script chose.
 export GOTOOLCHAIN=local
 
+if [ "$DRY" -eq 1 ]; then
+	printf '[dry]  --dry-run: nothing below is changed\n'
+fi
+
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+
+# --- leak guards -------------------------------------------------------------
+
+# in_git: this script sits in a git clone whose top level is $REPO.
+in_git() {
+	command -v git >/dev/null 2>&1 &&
+		[ "$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" = "$REPO" ]
+}
+
+HOOKS=scripts/githooks
+
+hooks_executable() {
+	[ -x "$REPO/$HOOKS/pre-commit" ] && [ -x "$REPO/$HOOKS/pre-push" ]
+}
+
+# step_hooks: every system, unless the machine sets its own hooks path. A
+# local core.hooksPath replaces a global or system one entirely (every hook
+# type), so where one is set, such as a company secret scanner, fbm's hooks
+# stay out and it stays in force. A clone from a web upload has no executable
+# bits, and git skips a hook that is not executable, so they are set here; if
+# git then sees a mode change, core.fileMode false keeps `git pull` working.
+step_hooks() {
+	local cur machine
+	if ! in_git; then
+		warn "$REPO is not a git clone; the leak-guard git hooks are not installed"
+		return
+	fi
+	machine=$(git config --global --get core.hooksPath 2>/dev/null || git config --system --get core.hooksPath 2>/dev/null || true)
+	if [ -n "$machine" ]; then
+		warn "a machine-wide git hooks path is set ($machine); fbm's hooks are not installed here so it stays in force — run bash scripts/check-public.sh before committing, and publish only from bash scripts/export-public.sh"
+		return
+	fi
+	cur=$(git -C "$REPO" config --local --get core.hooksPath 2>/dev/null || true)
+	if [ "$cur" = "$HOOKS" ] && hooks_executable; then
+		skip "git hooks already run from $HOOKS (core.hooksPath)"
+		return
+	fi
+	if [ "$DRY" -eq 1 ]; then
+		would "set core.hooksPath to $HOOKS in this clone, so commits and pushes run scripts/check-public.sh"
+		return
+	fi
+	if ! hooks_executable; then
+		chmod +x "$REPO/$HOOKS/pre-commit" "$REPO/$HOOKS/pre-push"
+		if ! git -C "$REPO" diff --quiet -- "$HOOKS"; then
+			git -C "$REPO" config --local core.fileMode false
+			note "core.fileMode false: git ignores the executable bits set on the hooks"
+		fi
+	fi
+	git -C "$REPO" config --local core.hooksPath "$HOOKS"
+	ok "git hooks run from $HOOKS (core.hooksPath): commits and pushes run scripts/check-public.sh"
+}
+
+# step_push_guard: Linux only. Nothing in this clone can push: the push URL is
+# not a URL, and no credential helper answers for it.
+step_push_guard() {
+	local cur
+	if ! in_git; then
+		warn "$REPO is not a git clone; pushing could not be disabled"
+		return
+	fi
+	cur=$(git -C "$REPO" config --local --get-all remote.origin.pushurl 2>/dev/null || true)
+	if [ "$cur" = DISABLED ]; then
+		skip "pushing from this clone is already disabled (remote.origin.pushurl DISABLED)"
+	elif [ "$DRY" -eq 1 ]; then
+		would "set remote.origin.pushurl to DISABLED, so this clone cannot push"
+	else
+		git -C "$REPO" config --local --replace-all remote.origin.pushurl DISABLED
+		ok "pushing from this clone is disabled (remote.origin.pushurl DISABLED)"
+	fi
+	# Set to one empty value, credential.helper clears every helper for this clone.
+	if cur=$(git -C "$REPO" config --local --get-all credential.helper 2>/dev/null) && [ -z "$cur" ]; then
+		skip "this clone already uses no git credential helper"
+	elif [ "$DRY" -eq 1 ]; then
+		would "set credential.helper to '' in this clone, so no git credential helper answers for it"
+	else
+		git -C "$REPO" config --local --replace-all credential.helper ''
+		ok "this clone uses no git credential helper"
+	fi
+}
+
+# tildify PATH: PATH with a leading $HOME shown as ~.
+tildify() {
+	# shellcheck disable=SC2088 # a literal ~ for display
+	case $1 in
+	"$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+	*) printf '%s' "$1" ;;
+	esac
+}
+
+# gh_credentials: the kinds of GitHub credential on this machine, comma
+# separated, or nothing. It names where each one is, never its value.
+gh_credentials() {
+	local kinds="" v f t cfg
+	for v in GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN; do
+		if [ -n "${!v:-}" ]; then
+			kinds="$kinds, env $v"
+		fi
+	done
+	if command -v gh >/dev/null 2>&1; then
+		t=""
+		if command -v timeout >/dev/null 2>&1; then
+			t="timeout 30"
+		fi
+		# shellcheck disable=SC2086 # $t is empty or "timeout 30"
+		if $t gh auth status </dev/null >/dev/null 2>&1; then
+			kinds="$kinds, gh auth status"
+		fi
+	fi
+	cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+	for f in "$HOME/.git-credentials" "$cfg/git/credentials"; do
+		if [ -f "$f" ] && grep -qi 'github\.com' "$f" 2>/dev/null; then
+			kinds="$kinds, a github.com entry in $(tildify "$f")"
+		fi
+	done
+	# netrc: curl and git over HTTPS read it; a github.com machine line can push.
+	for f in "$HOME/.netrc" "$HOME/_netrc"; do
+		if [ -f "$f" ] && grep -qiE 'machine[[:space:]]+([a-z0-9.-]+[.])?github[.]com' "$f" 2>/dev/null; then
+			kinds="$kinds, a github.com entry in $(tildify "$f")"
+		fi
+	done
+	for f in "${GH_CONFIG_DIR:-$cfg/gh}/hosts.yml" "$HOME/.config/gh/hosts.yml"; do
+		if [ -e "$f" ]; then
+			kinds="$kinds, $(tildify "$f")"
+			break
+		fi
+	done
+	printf '%s' "${kinds#, }"
+}
+
+# step_credentials: Linux only. A credential that can publish to GitHub must
+# not sit next to Karmi's Messenger session.
+step_credentials() {
+	local kinds msg k
+	kinds=$(gh_credentials)
+	if [ -z "$kinds" ]; then
+		ok "no GitHub credential on this machine (env tokens, gh, git credential files, netrc)"
+	elif [ "${FBM_ALLOW_GH_CREDENTIAL:-}" = 1 ]; then
+		warn "a GitHub credential is present on this machine ($kinds); continuing because FBM_ALLOW_GH_CREDENTIAL=1"
+	else
+		msg="a GitHub credential is present on this machine ($kinds). fbm will not be set up next to a credential that can publish. Remove it, or have Karmi set FBM_ALLOW_GH_CREDENTIAL=1."
+		if [ "$DRY" -eq 1 ]; then
+			warn "a real run would stop here: $msg"
+		else
+			die "$msg"
+		fi
+	fi
+	for k in "$HOME"/.ssh/id_*; do
+		case $k in
+		*.pub) ;;
+		*) if [ -f "$k" ]; then
+			warn "there is a private SSH key in $(tildify "$HOME/.ssh"); if GitHub knows it, it can push to an explicit URL, which DISABLED does not stop"
+			break
+		fi ;;
+		esac
+	done
+}
+
+step_hooks
+
 if [ "$(uname -s)" != Linux ]; then
-	warn "install.sh supports Linux only (this is $(uname -s)); nothing was changed"
+	warn "install.sh supports Linux only (this is $(uname -s)); nothing else was changed"
 	exit 0
 fi
 
@@ -63,8 +233,10 @@ aarch64 | arm64)
 esac
 
 [ -n "${HOME:-}" ] || die "HOME is not set"
-REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 [ -f "$REPO/go.mod" ] && [ -d "$REPO/cmd/fbm" ] || die "$REPO is not the fbm repo root"
+
+step_push_guard
+step_credentials
 
 LOCAL=$HOME/.local
 BIN=$LOCAL/bin
@@ -612,9 +784,6 @@ step_doctor() {
 
 # --- run -------------------------------------------------------------------
 
-if [ "$DRY" -eq 1 ]; then
-	printf '[dry]  --dry-run: nothing below is changed\n'
-fi
 step_go
 step_build
 step_chromium
