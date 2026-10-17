@@ -169,6 +169,31 @@ opens on its computer. He clears a checkpoint from his phone only if Facebook ra
 Still open: upload the tracked tree to the public repo through the browser (run
 `scripts/check-public.sh` first). The Dot then runs the 48-hour spike, and its verdict decides M1.
 
+## Leak guardrails (2026-10-17)
+
+The audit was clean: no tokens, cookies, keys, chat content, local paths or private strings
+appeared in any of the 19 published commits or the 7 issues. Since then:
+
+- Layered guardrails:
+  - credential starvation on the Dot
+  - an `export-public.sh` publish gate
+  - `check-public.sh`
+  - `.gitleaks.toml`
+  - git hooks
+  - a `leak-guard` CI workflow that uses no secrets
+- GitHub hardening:
+  - a ruleset that blocks force-push and deletion
+  - Actions restricted to `actions/checkout`, pinned by SHA
+  - approval required for fork pull requests
+  - Wiki off
+- Designed with Fable counsel, reviewed by Codex and Fable, and fixed over two rounds. The
+  planted-leak suite ends at 423/423.
+- Published and verified at 75/75 blobs. The first `leak-guard` run on GitHub passed.
+- Open item only Karmi can act on: the ChatGPT Codex Connector has write access to all repos.
+
+Details and reproduction steps: `docs/leak-guardrails.md`. Publishing steps:
+`docs/runbooks/publish.md`.
+
 ## How to resume if this session is lost
 
 - The execution ledger is committed at `docs/history/2026-10-16-m0-execution-ledger.md`.
