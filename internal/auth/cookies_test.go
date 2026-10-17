@@ -25,7 +25,7 @@ func TestParseCookieExport_JSONArrayKeepsOnlyMetaNames(t *testing.T) {
 	c, err := auth.ParseCookieExport(open(t, "testdata/chrome.json"))
 	require.NoError(t, err)
 	require.Len(t, c.GetMissingCookieNames(), 0)
-	require.Equal(t, int64(100001234567890), c.GetUserID())
+	require.Equal(t, int64(1234567), c.GetUserID())
 	require.Empty(t, c.Get("unrelated_cookie"))
 }
 
@@ -34,7 +34,7 @@ func TestParseCookieExport_NetscapeHttpOnlyPrefix(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, c.Get(cookies.FBCookieXS))
 	require.NotEmpty(t, c.Get(cookies.MetaCookieDatr))
-	require.Equal(t, int64(100001234567890), c.GetUserID())
+	require.Equal(t, int64(1234567), c.GetUserID())
 	require.Empty(t, c.Get(cookies.FBCookieFR), "expired fr must be dropped")
 }
 

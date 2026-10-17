@@ -20,14 +20,14 @@ func fbCookie(name, value, domain string) browser.Cookie {
 
 func TestFromBrowserTakesTheThreeNames(t *testing.T) {
 	c, err := auth.FromBrowser([]browser.Cookie{
-		fbCookie("c_user", "100001234567890", ".facebook.com"),
+		fbCookie("c_user", "1234567", ".facebook.com"),
 		fbCookie("xs", "fake-xs", ".facebook.com"),
 		fbCookie("datr", "fake-datr", ".facebook.com"),
 		fbCookie("fr", "fake-fr", ".facebook.com"),
 	})
 	require.NoError(t, err)
 	require.Empty(t, c.GetMissingCookieNames())
-	require.Equal(t, int64(100001234567890), c.GetUserID())
+	require.Equal(t, int64(1234567), c.GetUserID())
 	require.Equal(t, "fake-xs", c.Get(cookies.FBCookieXS))
 	require.Equal(t, "fake-datr", c.Get(cookies.MetaCookieDatr))
 	require.Empty(t, c.Get(cookies.FBCookieFR), "only c_user, xs and datr are taken")
