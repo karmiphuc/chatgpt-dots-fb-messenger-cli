@@ -65,7 +65,7 @@ Task 4: minor (deferred): NewLogger param unused; symlink git-tree path untested
 Task 4: complete (commits d817f88..dc756aa, review clean)
 Task 5: dispatched (BASE dc756aa, implementer sonnet)
 Task 5: implementer DONE_WITH_CONCERNS 0b5272a; agent a104862cffc8fb6b8
-INCIDENT: during Task 5 TDD, 3-4 session-test requests went direct to www.facebook.com from this Mac with the fake fixture cookies (c_user 100001234567890, fake xs). Cause: plan/R4 assumed ClientSettings.ProxyAddress routes traffic; in messagix only WithProxy sets the transport. Karmi's account and cookies were never involved. Fixed in 0b5272a with WithProxy wiring plus an offline transport test and a refusing-proxy test. Report to Karmi at hand-off.
+INCIDENT: during Task 5 TDD, 3-4 session-test requests went direct to www.facebook.com from this Mac with the fake fixture cookies (a fake 15-digit c_user, fake xs). Cause: plan/R4 assumed ClientSettings.ProxyAddress routes traffic; in messagix only WithProxy sets the transport. Karmi's account and cookies were never involved. Fixed in 0b5272a with WithProxy wiring plus an offline transport test and a refusing-proxy test. Report to Karmi at hand-off.
 - Ruling R13: when `fbm spike` opens with fresh=false and Open fails with a non-fatal class, retry once with fresh=true; fatal classes stop immediately — implementer concern 4 — costs one extra page load on a stale cache.
 Task 5: review dispatched (opus — core protocol code)
 Task 5: review (opus) Spec ✅ with accepted deviations; Needs fixes: 2 Important (both plan-mandated), 5 Minor
