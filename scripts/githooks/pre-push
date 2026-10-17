@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# fbm pre-push: refuse every push from a clone where install.sh disabled
+# pushing (remote.origin.pushurl is DISABLED), and otherwise refuse a push while
+# check-public.sh finds anything in the tracked files or gitleaks finds
+# anything in the commits being pushed. Then run the pre-push of the global or
+# system core.hooksPath, if there is one.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+if git config --get-all remote.origin.pushurl 2>/dev/null | grep -qx DISABLED; then
+	echo "pre-push: pushing from this clone is disabled (remote.origin.pushurl is DISABLED, set by install.sh). Never re-enable it; Karmi publishes from a folder made by bash scripts/export-public.sh." >&2
+	exit 1
+fi
+
+refs=$(mktemp)
+trap 'rm -f "$refs"' EXIT
+cat >"$refs"
+
+if ! bash "$root/scripts/check-public.sh" --quiet-hits; then
+	echo "pre-push: push refused. Fix the files above first; check with: bash scripts/check-public.sh" >&2
+	exit 1
+fi
+
+# The commits being pushed, not only the tree: a leak added and then deleted
+# still sits in history.
+if command -v gitleaks >/dev/null 2>&1; then
+	while read -r _ lsha _ rsha; do
+		case $lsha in
+		*[!0]*) ;;
+		*) continue ;; # a branch deletion pushes no commits
+		esac
+		range="$lsha --not --remotes"
+		case $rsha in
+		*[!0]*) if git cat-file -e "$rsha^{commit}" 2>/dev/null; then range="$rsha..$lsha"; fi ;;
+		esac
+		rc=0
+		gitleaks git --config "$root/.gitleaks.toml" --redact --no-banner --ignore-gitleaks-allow \
+			--gitleaks-ignore-path "$refs.none" --log-level error --exit-code 99 \
+			--report-format template --report-template <(printf '{{range .}}{{.Commit}} {{.File}}:{{.StartLine}}: gitleaks {{.RuleID}}\n{{end}}') \
+			--report-path - --log-opts="$range" "$root" 2>/dev/null || rc=$?
+		if [ "$rc" -ne 0 ]; then
+			echo "pre-push: push refused. gitleaks exit $rc on the commits being pushed (99: the findings above)." >&2
+			exit 1
+		fi
+	done <"$refs"
+else
+	echo "[warn] gitleaks not installed; the commits being pushed were not scanned" >&2
+fi
+
+if [ -z "${FBM_HOOK_CHAINED:-}" ]; then
+	prev=$(git config --global --get core.hooksPath || git config --system --get core.hooksPath || true)
+	# shellcheck disable=SC2088 # git config holds a literal ~
+	case $prev in
+	"~/"*) prev=$HOME/${prev#"~/"} ;;
+	esac
+	here=$(cd "$(dirname "$0")" && pwd -P)
+	if [ -n "$prev" ] && [ -x "$prev/pre-push" ] && [ "$(cd "$prev" 2>/dev/null && pwd -P)" != "$here" ]; then
+		export FBM_HOOK_CHAINED=1
+		exec 3<"$refs"
+		rm -f "$refs"
+		exec "$prev/pre-push" "$@" <&3 3<&-
+	fi
+fi

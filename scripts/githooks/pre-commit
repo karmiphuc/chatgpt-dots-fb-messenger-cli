@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# fbm pre-commit: refuse a commit whose staged files hold anything that
+# check-public.sh blocks (paths and line numbers only, never the text).
+# Then run the pre-commit of the global or system core.hooksPath, if there is
+# one, so a machine-wide secret scanner still runs here.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+if ! bash "$root/scripts/check-public.sh" --staged --quiet-hits; then
+	echo "pre-commit: commit refused. Unstage or fix the files above (check with: bash scripts/check-public.sh --staged); never bypass this with --no-verify." >&2
+	exit 1
+fi
+
+# core.hooksPath set in this clone replaces the machine's; chain to it, once.
+if [ -z "${FBM_HOOK_CHAINED:-}" ]; then
+	prev=$(git config --global --get core.hooksPath || git config --system --get core.hooksPath || true)
+	# shellcheck disable=SC2088 # git config holds a literal ~
+	case $prev in
+	"~/"*) prev=$HOME/${prev#"~/"} ;;
+	esac
+	here=$(cd "$(dirname "$0")" && pwd -P)
+	if [ -n "$prev" ] && [ -x "$prev/pre-commit" ] && [ "$(cd "$prev" 2>/dev/null && pwd -P)" != "$here" ]; then
+		export FBM_HOOK_CHAINED=1
+		exec "$prev/pre-commit" "$@"
+	fi
+fi
